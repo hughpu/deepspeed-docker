@@ -46,6 +46,8 @@ RUN add-apt-repository ppa:git-core/ppa -y && \
         apt-get update && \
         apt-get install -y git && \
         git --version
+RUN git config --global https.proxy http://172.18.176.1:7890
+RUN git config --global http.proxy http://172.18.176.1:7890
 
 ##############################################################################
 # Client Liveness & Uncomment Port 22 for SSH Daemon
@@ -108,36 +110,6 @@ RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
         chmod a+x /usr/local/mpi/bin/mpirun
 
 ##############################################################################
-# Python
-##############################################################################
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHON_VERSION=3
-RUN add-apt-repository ppa:deadsnakes/ppa && \
-        apt-get update && \
-	apt install python3.10 python3.10-dev && \
-        pip install --upgrade pip && \
-        # Print python an pip version
-        python -V && pip -V
-
-# RUN apt-get install -y python3 python3-dev && \
-#         rm -f /usr/bin/python && \
-#         ln -s /usr/bin/python3 /usr/bin/python && \
-#         curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py && \
-#         python get-pip.py && \
-#         rm get-pip.py && \
-#         pip install --upgrade pip && \
-#         # Print python an pip version
-#         python -V && pip -V
-RUN pip install pyyaml
-RUN pip install ipython
-
-##############################################################################
-# TensorFlow
-##############################################################################
-ENV TENSORFLOW_VERSION=2.12.*
-RUN pip install tensorflow==${TENSORFLOW_VERSION}
-
-##############################################################################
 # Some Packages
 ##############################################################################
 RUN apt-get update && \
@@ -148,14 +120,73 @@ RUN apt-get update && \
         libpng-dev \
         screen \
         libaio-dev
+RUN apt-get install -y python3 python3-dev
+RUN apt-get install -y libssl-dev zlib1g-dev \
+	libbz2-dev libreadline-dev libsqlite3-dev \
+	libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
 
+##############################################################################
+## SSH daemon port inside container cannot conflict with host OS port
+###############################################################################
+ENV SSH_PORT=2222
+RUN cat /etc/ssh/sshd_config > ${STAGE_DIR}/sshd_config && \
+        sed "0,/^#Port 22/s//Port ${SSH_PORT}/" ${STAGE_DIR}/sshd_config > /etc/ssh/sshd_config
+
+##############################################################################
+## Add deepspeed user
+###############################################################################
+# Add a deepspeed user with user id 8877
+#RUN useradd --create-home --uid 8877 deepspeed
+RUN useradd --create-home --uid 1000 --shell /bin/bash deepspeed
+RUN usermod -aG sudo deepspeed
+RUN echo "deepspeed ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+# # Change to non-root privilege
+USER deepspeed
+
+##############################################################################
+# Python
+##############################################################################
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHON_VERSION=3.10
+RUN export HTTPS_PROXY=http://172.18.176.1:7890
+RUN git config --global https.proxy http://172.18.176.1:7890
+RUN git config --global http.proxy http://172.18.176.1:7890
+
+# RUN git clone https://github.com/pyenv/pyenv.git $HOME/.pyenv
+# RUN cd $HOME/.pyenv && src/configure && make -C src
+RUN ls -laFh $HOME/
+RUN curl https://pyenv.run | sh
+ENV DS_HOME=/home/deepspeed
+RUN echo 'export PYENV_ROOT="$DS_HOME/.pyenv"' >> $DS_HOME/.bashrc
+RUN echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> $DS_HOME/.bashrc
+RUN echo 'eval "$(pyenv init -)"' >> $DS_HOME/.bashrc
+RUN echo 'export PYENV_ROOT="$DS_HOME/.pyenv"' >> $DS_HOME/.profile
+RUN echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> $DS_HOME/.profile
+RUN echo 'eval "$(pyenv init -)"' >> $DS_HOME/.profile
+ENV PYENV_ROOT="$DS_HOME/.pyenv"
+ENV PATH="$PYENV_ROOT/bin:$PATH"
+RUN eval "$(pyenv init -)"
+
+RUN pyenv install $PYTHON_VERSION
+RUN pyenv global $PYTHON_VERSION
+ENV PATH="$PYENV_ROOT/versions/3.10.12/bin:$PATH"
+
+# Print python an pip version
+RUN python -V && python3 -V && pip -V
+RUN pip install pyyaml
+RUN pip install ipython
+
+##############################################################################
+# TensorFlow
+##############################################################################
+ENV TENSORFLOW_VERSION=2.12.*
+RUN pip install tensorflow==${TENSORFLOW_VERSION}
 RUN pip install psutil \
         yappi \
         cffi \
         ipdb \
         pandas \
         matplotlib
-
 RUN pip install py3nvml \
         pyarrow \
         graphviz \
@@ -165,7 +196,6 @@ RUN pip install py3nvml \
         sentencepiece \
         msgpack \
         requests
-
 RUN pip install sphinx \
         sphinx_rtd_theme \
         scipy \
@@ -174,16 +204,9 @@ RUN pip install sphinx \
         scikit-learn \
         nvidia-ml-py3 \
         mpi4py \
-        cupy-cuda117 \
-	nvidia-cudnn-cu11==8.6.0.163
+        cupy-cuda117
 
 
-##############################################################################
-## SSH daemon port inside container cannot conflict with host OS port
-###############################################################################
-ENV SSH_PORT=2222
-RUN cat /etc/ssh/sshd_config > ${STAGE_DIR}/sshd_config && \
-        sed "0,/^#Port 22/s//Port ${SSH_PORT}/" ${STAGE_DIR}/sshd_config > /etc/ssh/sshd_config
 
 ##############################################################################
 # PyTorch
@@ -202,19 +225,9 @@ RUN pip install lm-dataformat ftfy tokenizers wandb
 # PyYAML build issue
 # https://stackoverflow.com/a/53926898
 ##############################################################################
-RUN rm -rf /usr/lib/python3/dist-packages/yaml && \
-        rm -rf /usr/lib/python3/dist-packages/PyYAML-*
+# RUN rm -rf /usr/lib/python3/dist-packages/yaml && \
+#         rm -rf /usr/lib/python3/dist-packages/PyYAML-*
 
-##############################################################################
-## Add deepspeed user
-###############################################################################
-# Add a deepspeed user with user id 8877
-#RUN useradd --create-home --uid 8877 deepspeed
-RUN useradd --create-home --uid 1000 --shell /bin/bash deepspeed
-RUN usermod -aG sudo deepspeed
-RUN echo "deepspeed ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-# # Change to non-root privilege
-USER deepspeed
 
 ##############################################################################
 # DeepSpeed
@@ -229,3 +242,5 @@ RUN cd ${STAGE_DIR}/DeepSpeed && \
         ./install.sh --pip_sudo
 RUN rm -rf ${STAGE_DIR}/DeepSpeed
 RUN python -c "import deepspeed; print(deepspeed.__version__)"
+
+WORKDIR $HOME
