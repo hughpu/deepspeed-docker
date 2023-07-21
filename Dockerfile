@@ -46,8 +46,6 @@ RUN add-apt-repository ppa:git-core/ppa -y && \
         apt-get update && \
         apt-get install -y git && \
         git --version
-RUN git config --global https.proxy http://172.18.176.1:7890
-RUN git config --global http.proxy http://172.18.176.1:7890
 
 ##############################################################################
 # Client Liveness & Uncomment Port 22 for SSH Daemon
@@ -148,9 +146,6 @@ USER deepspeed
 ##############################################################################
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHON_VERSION=3.10
-RUN export HTTPS_PROXY=http://172.18.176.1:7890
-RUN git config --global https.proxy http://172.18.176.1:7890
-RUN git config --global http.proxy http://172.18.176.1:7890
 
 # RUN git clone https://github.com/pyenv/pyenv.git $HOME/.pyenv
 # RUN cd $HOME/.pyenv && src/configure && make -C src
@@ -214,6 +209,7 @@ RUN pip install sphinx \
 ENV PYTORCH_VERSION=1.13.1+cu117
 ENV TORCHVISION_VERSION=0.14.1
 ENV TORCHAUDIO_VERSION=0.13.1
+ENV TENSORBOARDX_VERSION=2.6.1
 RUN pip install torch==${PYTORCH_VERSION} torchvision==${TORCHVISION_VERSION} torchaudio==${TORCHAUDIO_VERSION} --extra-index-url https://download.pytorch.org/whl/cu117
 RUN pip install tensorboardX==${TENSORBOARDX_VERSION}
 RUN pip install datasets transformers peft accelerate bitsandbytes
@@ -232,14 +228,12 @@ RUN pip install lm-dataformat ftfy tokenizers wandb
 ##############################################################################
 # DeepSpeed
 ##############################################################################
-RUN test -d ./DeepSpeed || git clone https://github.com/microsoft/DeepSpeed.git ./DeepSpeed
-RUN mkdir -p ${STAGE_DIR}/DeepSpeed
-COPY ./DeepSpeed/ ${STAGE_DIR}/DeepSpeed/
+RUN git clone https://github.com/microsoft/DeepSpeed.git ${STAGE_DIR}/DeepSpeed
 RUN sudo chown -R deepspeed:deepspeed ${STAGE_DIR}/DeepSpeed
 RUN cd ${STAGE_DIR}/DeepSpeed && \
         git checkout . && \
         git checkout master && \
-        ./install.sh --pip_sudo
+        ./install.sh
 RUN rm -rf ${STAGE_DIR}/DeepSpeed
 RUN python -c "import deepspeed; print(deepspeed.__version__)"
 
