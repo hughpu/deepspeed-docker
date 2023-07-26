@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.7.1-devel-ubuntu18.04
+FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu18.04
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -124,24 +124,6 @@ RUN apt-get install -y libssl-dev zlib1g-dev \
 	libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
 
 ##############################################################################
-## SSH daemon port inside container cannot conflict with host OS port
-###############################################################################
-ENV SSH_PORT=2222
-RUN cat /etc/ssh/sshd_config > ${STAGE_DIR}/sshd_config && \
-        sed "0,/^#Port 22/s//Port ${SSH_PORT}/" ${STAGE_DIR}/sshd_config > /etc/ssh/sshd_config
-
-##############################################################################
-## Add deepspeed user
-###############################################################################
-# Add a deepspeed user with user id 8877
-#RUN useradd --create-home --uid 8877 deepspeed
-RUN useradd --create-home --uid 1000 --shell /bin/bash deepspeed
-RUN usermod -aG sudo deepspeed
-RUN echo "deepspeed ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-# # Change to non-root privilege
-USER deepspeed
-
-##############################################################################
 # Python
 ##############################################################################
 ENV DEBIAN_FRONTEND=noninteractive
@@ -149,16 +131,8 @@ ENV PYTHON_VERSION=3.10
 
 # RUN git clone https://github.com/pyenv/pyenv.git $HOME/.pyenv
 # RUN cd $HOME/.pyenv && src/configure && make -C src
-RUN ls -laFh $HOME/
 RUN curl https://pyenv.run | sh
-ENV DS_HOME=/home/deepspeed
-RUN echo 'export PYENV_ROOT="$DS_HOME/.pyenv"' >> $DS_HOME/.bashrc
-RUN echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> $DS_HOME/.bashrc
-RUN echo 'eval "$(pyenv init -)"' >> $DS_HOME/.bashrc
-RUN echo 'export PYENV_ROOT="$DS_HOME/.pyenv"' >> $DS_HOME/.profile
-RUN echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> $DS_HOME/.profile
-RUN echo 'eval "$(pyenv init -)"' >> $DS_HOME/.profile
-ENV PYENV_ROOT="$DS_HOME/.pyenv"
+ENV PYENV_ROOT="$HOME/.pyenv"
 ENV PATH="$PYENV_ROOT/bin:$PATH"
 RUN eval "$(pyenv init -)"
 
@@ -170,6 +144,16 @@ ENV PATH="$PYENV_ROOT/versions/3.10.12/bin:$PATH"
 RUN python -V && python3 -V && pip -V
 RUN pip install pyyaml
 RUN pip install ipython
+
+# change pip source
+RUN cat > $HOME/.pip/pip.conf <<EOF
+[global]
+index-url = http://mirrors.aliyun.com/pypi/simple/
+
+[install]
+trusted-host=mirrors.aliyun.com
+EOF
+
 
 ##############################################################################
 # TensorFlow
@@ -202,20 +186,17 @@ RUN pip install sphinx \
         cupy-cuda117
 
 
-
 ##############################################################################
 # PyTorch
 ##############################################################################
-ENV PYTORCH_VERSION=1.13.1+cu117
-ENV TORCHVISION_VERSION=0.14.1
-ENV TORCHAUDIO_VERSION=0.13.1
 ENV TENSORBOARDX_VERSION=2.6.1
-RUN pip install torch==${PYTORCH_VERSION} torchvision==${TORCHVISION_VERSION} torchaudio==${TORCHAUDIO_VERSION} --extra-index-url https://download.pytorch.org/whl/cu117
+RUN pip install torch torchvision torchaudio
 RUN pip install tensorboardX==${TENSORBOARDX_VERSION}
 RUN pip install datasets transformers peft accelerate bitsandbytes
 RUN pip install lightning==2.0.2
 RUN pip install ninja numexpr jsonargparse 'jsonargparse[signatures]'
 RUN pip install lm-dataformat ftfy tokenizers wandb
+
 
 ##############################################################################
 # PyYAML build issue
@@ -223,6 +204,31 @@ RUN pip install lm-dataformat ftfy tokenizers wandb
 ##############################################################################
 # RUN rm -rf /usr/lib/python3/dist-packages/yaml && \
 #         rm -rf /usr/lib/python3/dist-packages/PyYAML-*
+##############################################################################
+## SSH daemon port inside container cannot conflict with host OS port
+###############################################################################
+ENV SSH_PORT=2222
+RUN cat /etc/ssh/sshd_config > ${STAGE_DIR}/sshd_config && \
+        sed "0,/^#Port 22/s//Port ${SSH_PORT}/" ${STAGE_DIR}/sshd_config > /etc/ssh/sshd_config
+
+
+##############################################################################
+## Add deepspeed user
+###############################################################################
+# Add a deepspeed user with user id 8877
+#RUN useradd --create-home --uid 8877 deepspeed
+RUN useradd --create-home --uid 1000 --shell /bin/bash deepspeed
+RUN usermod -aG sudo deepspeed
+RUN echo "deepspeed ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+# # Change to non-root privilege
+USER deepspeed
+
+RUN echo 'export PYENV_ROOT="$HOME/.pyenv"' >> $HOME/.bashrc
+RUN echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> $DS_HOME/.bashrc
+RUN echo 'eval "$(pyenv init -)"' >> $HOME/.bashrc
+RUN echo 'export PYENV_ROOT="$HOME/.pyenv"' >> $HOME/.profile
+RUN echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> $DS_HOME/.profile
+RUN echo 'eval "$(pyenv init -)"' >> $HOME/.profile
 
 
 ##############################################################################
@@ -233,8 +239,10 @@ RUN sudo chown -R deepspeed:deepspeed ${STAGE_DIR}/DeepSpeed
 RUN cd ${STAGE_DIR}/DeepSpeed && \
         git checkout . && \
         git checkout master && \
-        ./install.sh
+        ./install.sh --pip_sudo
 RUN rm -rf ${STAGE_DIR}/DeepSpeed
+RUN pip cache purge
+RUN rm /var/lib/apt/lists/*
 RUN python -c "import deepspeed; print(deepspeed.__version__)"
 
 WORKDIR $HOME
