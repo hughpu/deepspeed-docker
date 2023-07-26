@@ -129,16 +129,24 @@ RUN apt-get install -y libssl-dev zlib1g-dev \
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHON_VERSION=3.10
 
-# RUN git clone https://github.com/pyenv/pyenv.git $HOME/.pyenv
-# RUN cd $HOME/.pyenv && src/configure && make -C src
-RUN curl https://pyenv.run | sh
-ENV PYENV_ROOT="$HOME/.pyenv"
-ENV PATH="$PYENV_ROOT/bin:$PATH"
-RUN eval "$(pyenv init -)"
-
-RUN pyenv install $PYTHON_VERSION
-RUN pyenv global $PYTHON_VERSION
-ENV PATH="$PYENV_ROOT/versions/3.10.12/bin:$PATH"
+RUN wget -O /tmp/Python-3.10.6.tgz https://www.python.org/ftp/python/3.10.6/Python-3.10.6.tgz
+RUN mkdir -p /tmp/Python-3.10.6
+RUN tar -xf /tmp/Python-3.10.6.tgz -C /tmp
+RUN apt-get install -y libncurses5-dev libgdbm-dev libnss3-dev
+RUN cd /tmp/Python-3.10.6 && ./configure --enable-optimizations
+RUN cd /tmp/Python-3.10.6 && make && make altinstall
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.10 9
+RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.10 9
+RUN update-alternatives --set python3 /usr/local/bin/python3.10
+RUN update-alternatives --set python /usr/local/bin/python3.10
+RUN update-alternatives --install /usr/bin/pip3 pip3 /usr/local/bin/pip3.10 9
+RUN update-alternatives --install /usr/bin/pip pip /usr/local/bin/pip3.10 9
+RUN update-alternatives --set pip3 /usr/local/bin/pip3.10
+RUN update-alternatives --set pip /usr/local/bin/pip3.10
+RUN ln -s /usr/local/bin/pip3.10 /usr/local/bin/pip
+RUN ln -s /usr/local/bin/pip3.10 /usr/local/bin/pip3
+RUN ln -s /usr/local/bin/python3.10 /usr/local/bin/python
+RUN ln -s /usr/local/bin/python3.10 /usr/local/bin/python3
 
 # Print python an pip version
 RUN python -V && python3 -V && pip -V
@@ -146,6 +154,7 @@ RUN pip install pyyaml
 RUN pip install ipython
 
 # change pip source
+RUN mkdir -p $HOME/.pip
 RUN cat > $HOME/.pip/pip.conf <<EOF
 [global]
 index-url = http://mirrors.aliyun.com/pypi/simple/
@@ -196,7 +205,7 @@ RUN pip install datasets transformers peft accelerate bitsandbytes
 RUN pip install lightning==2.0.2
 RUN pip install ninja numexpr jsonargparse 'jsonargparse[signatures]'
 RUN pip install lm-dataformat ftfy tokenizers wandb
-
+RUN pip uninstall -y bitsandbytes && pip install bitsandbytes-cuda117
 
 ##############################################################################
 # PyYAML build issue
@@ -223,12 +232,9 @@ RUN echo "deepspeed ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 # # Change to non-root privilege
 USER deepspeed
 
-RUN echo 'export PYENV_ROOT="$HOME/.pyenv"' >> $HOME/.bashrc
-RUN echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> $DS_HOME/.bashrc
-RUN echo 'eval "$(pyenv init -)"' >> $HOME/.bashrc
-RUN echo 'export PYENV_ROOT="$HOME/.pyenv"' >> $HOME/.profile
-RUN echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> $DS_HOME/.profile
-RUN echo 'eval "$(pyenv init -)"' >> $HOME/.profile
+RUN mkdir -p $HOME/.pip
+RUN sudo cp /root/.pip/pip.conf $HOME/.pip/pip.conf
+RUN sudo chown deepspeed:deepspeed $HOME/.pip/pip.conf
 
 
 ##############################################################################
@@ -240,9 +246,14 @@ RUN cd ${STAGE_DIR}/DeepSpeed && \
         git checkout . && \
         git checkout master && \
         ./install.sh --pip_sudo
+
+
 RUN rm -rf ${STAGE_DIR}/DeepSpeed
 RUN pip cache purge
-RUN rm /var/lib/apt/lists/*
-RUN python -c "import deepspeed; print(deepspeed.__version__)"
+RUN sudo -H -u root pip cache purge
+RUN sudo apt-get clean
+RUN sudo rm -rf /tmp/Python*
+RUN sudo rm -rf /var/lib/apt/lists/*
 
+RUN python -c "import deepspeed; print(deepspeed.__version__)"
 WORKDIR $HOME
