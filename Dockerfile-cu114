@@ -182,7 +182,6 @@ RUN pip install sphinx \
         sphinx_rtd_theme \
         scipy \
         numpy \
-        sklearn \
         scikit-learn \
         nvidia-ml-py3 \
         mpi4py \
@@ -240,7 +239,6 @@ RUN cd ${STAGE_DIR}/DeepSpeed && \
         git checkout . && \
         git checkout master && \
         ./install.sh --pip_sudo
-
 
 RUN rm -rf ${STAGE_DIR}/DeepSpeed
 RUN pip cache purge
