@@ -188,7 +188,6 @@ RUN pip install sphinx \
         sphinx_rtd_theme \
         scipy \
         numpy \
-        sklearn \
         scikit-learn \
         nvidia-ml-py3 \
         mpi4py \
@@ -201,11 +200,10 @@ RUN pip install sphinx \
 ENV TENSORBOARDX_VERSION=2.6.1
 RUN pip install torch torchvision torchaudio
 RUN pip install tensorboardX==${TENSORBOARDX_VERSION}
-RUN pip install datasets transformers peft accelerate bitsandbytes
+RUN pip install datasets transformers peft accelerate bitsandbytes-cuda117
 RUN pip install lightning==2.0.2
 RUN pip install ninja numexpr jsonargparse 'jsonargparse[signatures]'
 RUN pip install lm-dataformat ftfy tokenizers wandb
-RUN pip uninstall -y bitsandbytes && pip install bitsandbytes-cuda117
 
 ##############################################################################
 # PyYAML build issue
@@ -231,6 +229,7 @@ RUN usermod -aG sudo deepspeed
 RUN echo "deepspeed ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 # # Change to non-root privilege
 USER deepspeed
+ENV HOME=/home/deepspeed
 
 RUN mkdir -p $HOME/.pip
 RUN sudo cp /root/.pip/pip.conf $HOME/.pip/pip.conf
@@ -246,7 +245,6 @@ RUN cd ${STAGE_DIR}/DeepSpeed && \
         git checkout . && \
         git checkout master && \
         ./install.sh --pip_sudo
-
 
 RUN rm -rf ${STAGE_DIR}/DeepSpeed
 RUN pip cache purge
