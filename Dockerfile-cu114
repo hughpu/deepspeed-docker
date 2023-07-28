@@ -248,4 +248,7 @@ RUN sudo rm -rf /tmp/Python*
 RUN sudo rm -rf /var/lib/apt/lists/*
 
 RUN python -c "import deepspeed; print(deepspeed.__version__)"
+COPY ./entry_deepspeed.sh $HOME/
+
 WORKDIR $HOME
+ENTRYPOINT bash entry_deepspeed.sh
