@@ -11,19 +11,15 @@ RUN mkdir -p ${STAGE_DIR}
 ##############################################################################
 # add aliyun ubuntu repo
 ##############################################################################
-RUN cat > /etc/apt/sources.list <<EOF
-deb https://mirrors.aliyun.com/ubuntu/ bionic main restricted universe multiverse
-deb-src https://mirrors.aliyun.com/ubuntu/ bionic main restricted universe multiverse
-
-deb https://mirrors.aliyun.com/ubuntu/ bionic-security main restricted universe multiverse
-deb-src https://mirrors.aliyun.com/ubuntu/ bionic-security main restricted universe multiverse
-
-deb https://mirrors.aliyun.com/ubuntu/ bionic-updates main restricted universe multiverse
-deb-src https://mirrors.aliyun.com/ubuntu/ bionic-updates main restricted universe multiverse
-
-deb https://mirrors.aliyun.com/ubuntu/ bionic-backports main restricted universe multiverse
-deb-src https://mirrors.aliyun.com/ubuntu/ bionic-backports main restricted universe multiverse
-EOF
+RUN echo \
+"deb https://mirrors.aliyun.com/ubuntu/ bionic main restricted universe multiverse\n\
+deb-src https://mirrors.aliyun.com/ubuntu/ bionic main restricted universe multiverse\n\
+deb https://mirrors.aliyun.com/ubuntu/ bionic-security main restricted universe multiverse\n\
+deb-src https://mirrors.aliyun.com/ubuntu/ bionic-security main restricted universe multiverse\n\
+deb https://mirrors.aliyun.com/ubuntu/ bionic-updates main restricted universe multiverse\n\
+deb-src https://mirrors.aliyun.com/ubuntu/ bionic-updates main restricted universe multiverse\n\
+deb https://mirrors.aliyun.com/ubuntu/ bionic-backports main restricted universe multiverse\n\
+deb-src https://mirrors.aliyun.com/ubuntu/ bionic-backports main restricted universe multiverse" > /etc/apt/sources.list
 
 
 ##############################################################################
@@ -155,13 +151,11 @@ RUN pip install ipython
 
 # change pip source
 RUN mkdir -p $HOME/.pip
-RUN cat > $HOME/.pip/pip.conf <<EOF
-[global]
-index-url = http://mirrors.aliyun.com/pypi/simple/
-
-[install]
-trusted-host=mirrors.aliyun.com
-EOF
+RUN echo \
+"[global]\n\
+index-url = http://mirrors.aliyun.com/pypi/simple/\n\
+[install]\n\
+trusted-host=mirrors.aliyun.com" > $HOME/.pip/pip.conf
 
 
 ##############################################################################
