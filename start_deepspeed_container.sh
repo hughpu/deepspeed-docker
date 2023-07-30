@@ -1,6 +1,6 @@
 set -e
 name=deepspeed
-image=deepspeed-cu114
+image=deepspeed
 
 local_data_path=$HOME/deepspeed
 local_ssh_path=$HOME/deepspeed_ssh
