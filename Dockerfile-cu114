@@ -1,4 +1,5 @@
 FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu18.04
+
 ENV DEBIAN_FRONTEND noninteractive
 
 ##############################################################################
@@ -7,11 +8,12 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV STAGE_DIR=/tmp
 ENV HOME=/root
 RUN mkdir -p ${STAGE_DIR}
+RUN test -n "$HTTPS_PROXY" || export HTTPS_PROXY="$https_proxy"
 
 ##############################################################################
 # add aliyun ubuntu repo
 ##############################################################################
-RUN echo \
+RUN test -n "$IN_CHINA" && echo \
 "deb https://mirrors.aliyun.com/ubuntu/ bionic main restricted universe multiverse\n\
 deb-src https://mirrors.aliyun.com/ubuntu/ bionic main restricted universe multiverse\n\
 deb https://mirrors.aliyun.com/ubuntu/ bionic-security main restricted universe multiverse\n\
@@ -42,6 +44,8 @@ RUN add-apt-repository ppa:git-core/ppa -y && \
         apt-get update && \
         apt-get install -y git && \
         git --version
+RUN test -n "${HTTPS_PROXY}" && \
+    git config --global https.proxy ${HTTPS_PROXY}
 
 ##############################################################################
 # Client Liveness & Uncomment Port 22 for SSH Daemon
@@ -151,7 +155,7 @@ RUN pip install ipython
 
 # change pip source
 RUN mkdir -p $HOME/.pip
-RUN echo \
+RUN test -n "$IN_CHINA" && echo \
 "[global]\n\
 index-url = http://mirrors.aliyun.com/pypi/simple/\n\
 [install]\n\
@@ -225,9 +229,11 @@ RUN echo "deepspeed ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 USER deepspeed
 ENV HOME=/home/deepspeed
 
-RUN mkdir -p $HOME/.pip
-RUN sudo cp /root/.pip/pip.conf $HOME/.pip/pip.conf
-RUN sudo chown deepspeed:deepspeed $HOME/.pip/pip.conf
+RUN test -n "$IN_CHINA" && mkdir -p $HOME/.pip \
+    && sudo cp /root/.pip/pip.conf $HOME/.pip/pip.conf \
+    && sudo chown deepspeed:deepspeed $HOME/.pip/pip.conf
+RUN test -n "${HTTPS_PROXY}" && \
+    git config --global https.proxy ${HTTPS_PROXY}
 
 
 ##############################################################################
