@@ -9,7 +9,7 @@ container_data_path=/data
 
 echo "Starting docker container: $name with image: $image"
 sudo docker run -itd --name $name \
-    --net=host \
+    --net=host --shm-size="1gb" \
     --mount type=bind,source=$local_data_path,target=$container_data_path \
     --mount type=bind,source=$local_ssh_path,target=$container_ssh_path \
     --gpus all $image
